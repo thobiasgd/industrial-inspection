@@ -43,6 +43,23 @@ A interface permite:
 
 ---
 
+## Interface e exemplos visuais
+
+### Aplicação web
+
+<p align="center">
+  <img src="./docs/images/ui-empty-state.png" alt="Tela inicial" width="49%">
+  <img src="./docs/images/ui-overlay-result.png" alt="Tela com resultado" width="49%">
+</p>
+
+### Exemplos de inspeção
+
+<p align="center">
+  <img src="./docs/images/overlay-broken-large.png" alt="Broken large" width="32%">
+  <img src="./docs/images/overlay-contamination.png" alt="Contamination" width="32%">
+  <img src="./docs/images/heatmap-example.png" alt="Heatmap" width="32%">
+</p>
+
 ## Como o detector funciona
 
 O detector usa uma **ResNet18 pré-treinada no ImageNet** como extrator de características.
