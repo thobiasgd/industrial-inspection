@@ -112,7 +112,7 @@ Instale primeiro o PyTorch com CUDA e, em seguida, o pacote do projeto:
 ```powershell
 python -m pip install --upgrade pip
 python -m pip install torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu126
-python -m pip install -e "./python[dev,visualization]"
+python -m pip install -e "./python[dev]"
 python -m vision_inspect.cli.check_gpu
 ```
 
@@ -280,7 +280,7 @@ Esses resultados se referem ao dataset e à configuração avaliados. O uso com 
 | --- | --- |
 | `CUDA is not available` | Execute `python -m vision_inspect.cli.check_gpu` no ambiente ativo e confira a instalação do PyTorch com CUDA e o driver da GPU. |
 | `Memory bank not found` ou `Threshold not found` | Confira os arquivos em `python/artifacts/` e execute a preparação na ordem indicada. |
-| `No module named vision_inspect` | Ative o ambiente correto e execute `python -m pip install -e "./python[dev,visualization]"` na raiz. |
+| `No module named vision_inspect` | Ative o ambiente correto e execute `python -m pip install -e "./python[dev]"` na raiz. |
 | A interface abre, mas a inspeção falha | Confira os três serviços, as URLs dos arquivos `.env` e o endpoint Python `/health`. |
 | Porta `5173` ocupada | Libere a porta antes de iniciar o frontend; outra porta também exigiria ajustar o CORS do backend. |
 

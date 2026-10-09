@@ -38,30 +38,3 @@ def create_anomaly_visualization(
     )
 
     return heatmap_bgr, overlay_bgr
-
-def create_bounding_box_visualization(
-    image_bgr: np.ndarray,
-    bounding_boxes: list[dict],
-) -> np.ndarray:
-
-    output_image = image_bgr.copy()
-
-    for box in bounding_boxes:
-        x = box["x"]
-        y = box["y"]
-
-        box_width = box["width"]
-        box_height = box["height"]
-
-        x2 = x + box_width
-        y2 = y + box_height
-
-        cv2.rectangle(
-            output_image,
-            (x, y),
-            (x2, y2),
-            (0, 0, 255),
-            3,
-        )
-
-    return output_image
