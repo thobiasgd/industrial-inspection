@@ -10,15 +10,11 @@ from vision_inspect.visualization import (
 
 
 def main() -> None:
-    # Localiza a raiz do projeto.
     project_root = PROJECT_ROOT
 
-    # Inicializa o detector.
     detector = AnomalyDetector(project_root)
 
 
-    # Usa a contaminação que anteriormente era um falso negativo
-    # quando utilizávamos somente o maior patch.
     image_path = (
         project_root
         / "dados"
@@ -40,7 +36,6 @@ def main() -> None:
         )
 
 
-    # Executa a inspeção.
     result = detector.inspect(image_bgr)
 
 
@@ -54,19 +49,16 @@ def main() -> None:
         result["bounding_boxes"],
     )
 
-    # Gera o heatmap e a sobreposição visual.
     heatmap_bgr, overlay_bgr = create_anomaly_visualization(
         image_bgr,
         result["anomaly_map"],
     )
 
-    # Desenha as regiões suspeitas sobre a imagem original.
     boxes_bgr = create_bounding_box_visualization(
         image_bgr,
         result["bounding_boxes"],
     )
 
-    # Monta uma visualização lado a lado.
     preview = cv2.hconcat([
         image_bgr,
         heatmap_bgr,

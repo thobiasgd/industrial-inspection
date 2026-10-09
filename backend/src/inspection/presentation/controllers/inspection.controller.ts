@@ -1,4 +1,3 @@
-/// <reference types="multer" />
 import { BadRequestException, Controller, Get, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { InspectionStatusResponseDto } from '../../application/dto/inspection-status-response.dto.js';
 import { GetInspectionStatusUseCase } from '../../application/use-cases/get-inspection-status.use-case.js';

@@ -5,22 +5,18 @@ def main() -> None:
     import matplotlib.pyplot as plt
     from PIL import Image
 
-    # Localiza os dados a partir da configuração central.
     pasta = PROJECT_ROOT / "dados" / "mvtec" / "bottle"
 
-    # Seleciona uma imagem boa, uma defeituosa e a máscara correspondente.
     arquivos = [
         ("Sem defeito", pasta / "train" / "good" / "000.png"),
         ("Com defeito", pasta / "test" / "broken_large" / "000.png"),
         ("Máscara do defeito", pasta / "ground_truth" / "broken_large" / "000_mask.png"),
     ]
 
-    # Confere os caminhos antes de tentar abrir as imagens.
     for titulo, caminho in arquivos:
         if not caminho.is_file():
             raise FileNotFoundError(f"Arquivo não encontrado: {caminho}")
 
-    # Prepara uma janela com três imagens lado a lado.
     figura, eixos = plt.subplots(1, 3, figsize=(14, 4))
 
     for eixo, (titulo, caminho) in zip(eixos, arquivos):

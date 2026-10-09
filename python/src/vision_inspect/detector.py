@@ -13,7 +13,6 @@ class AnomalyDetector:
 
     def __init__(self, project_root: Path = PROJECT_ROOT):
 
-        # Define o dispositivo usado pelo detector.
         if not torch.cuda.is_available():
             raise RuntimeError("CUDA is not available.")
 
@@ -41,14 +40,12 @@ class AnomalyDetector:
                 f"Threshold not found: {threshold_path}"
             )
 
-        # Carrega o banco de características na GPU.
         self.memory_bank = torch.load(
             bank_path,
             map_location=self.device,
             weights_only=True,
         )
 
-        # Carrega o threshold calibrado.
         threshold_data = torch.load(
             threshold_path,
             map_location="cpu",
@@ -57,8 +54,6 @@ class AnomalyDetector:
 
         self.threshold = threshold_data["threshold"]
 
-        # Mesmo preprocessamento usado durante
-        # a criação do memory bank.
         self.preprocess = transforms.Compose([
             transforms.ToTensor(),
 
@@ -73,12 +68,10 @@ class AnomalyDetector:
             ),
         ])
 
-        # Carrega a ResNet18 pré-treinada.
         model = resnet18(
             weights=ResNet18_Weights.IMAGENET1K_V1,
         )
 
-        # Utiliza a saída da layer2.
         self.feature_extractor = create_feature_extractor(
             model,
             return_nodes={
@@ -95,20 +88,16 @@ class AnomalyDetector:
 
     def inspect(self, image_bgr):
 
-        # Verifica se a imagem recebida é válida.
         if image_bgr is None or image_bgr.size == 0:
             raise ValueError(
                 "The image is empty or invalid."
             )
 
-        # OpenCV utiliza BGR.
-        # A ResNet foi preparada para receber RGB.
         image_rgb = cv2.cvtColor(
             image_bgr,
             cv2.COLOR_BGR2RGB,
         )
 
-        # Prepara a imagem e envia para a GPU.
         input_batch = (
             self.preprocess(image_rgb)
             .unsqueeze(0)
@@ -117,7 +106,6 @@ class AnomalyDetector:
 
         with torch.inference_mode():
 
-            # Extrai o mapa de características.
             feature_map = self.feature_extractor(
                 input_batch
             )["features"]
@@ -126,7 +114,6 @@ class AnomalyDetector:
                 feature_map.shape
             )
 
-            # Organiza uma posição espacial por linha.
             patch_features = (
                 feature_map
                 .permute(0, 2, 3, 1)
@@ -136,30 +123,23 @@ class AnomalyDetector:
                 )
             )
 
-            # Compara cada patch da imagem
-            # com o banco de referências normais.
             distances = torch.cdist(
                 patch_features,
                 self.memory_bank,
                 p=2,
             )
 
-            # Mantém a distância da referência
-            # mais próxima para cada patch.
             patch_scores = (
                 distances
                 .min(dim=1)
                 .values
             )
 
-            # Ordena do patch mais anômalo
-            # para o menos anômalo.
             sorted_scores = torch.sort(
                 patch_scores,
                 descending=True,
             ).values
 
-            # Seleciona os 5% patches mais anômalos.
             top_5_count = max(
                 1,
                 int(
@@ -168,7 +148,6 @@ class AnomalyDetector:
                 ),
             )
 
-            # Score final da imagem.
             anomaly_score = (
                 sorted_scores[
                     :top_5_count
@@ -177,9 +156,6 @@ class AnomalyDetector:
                 .item()
             )
 
-            # O menor valor ainda pertencente
-            # aos 5% mais anômalos é usado
-            # para localização.
             localization_threshold = (
                 sorted_scores[
                     top_5_count - 1
@@ -187,7 +163,6 @@ class AnomalyDetector:
                 .item()
             )
 
-            # Recupera a grade espacial 32x32.
             anomaly_map = (
                 patch_scores
                 .reshape(
@@ -196,7 +171,6 @@ class AnomalyDetector:
                 )
             )
 
-            # Cria a máscara das regiões mais anômalas.
             binary_map = (
                 anomaly_map
                 >= localization_threshold
@@ -210,7 +184,6 @@ class AnomalyDetector:
             )
 
 
-        # Decide se a peça é aprovada ou rejeitada.
         decision = (
             "REJECTED"
             if anomaly_score > self.threshold
@@ -220,12 +193,8 @@ class AnomalyDetector:
         bounding_boxes = []
 
 
-        # Só procura defeitos localizados
-        # quando a peça foi rejeitada.
         if decision == "REJECTED":
 
-            # Une pequenas lacunas dentro
-            # das regiões suspeitas.
             kernel = cv2.getStructuringElement(
                 cv2.MORPH_RECT,
                 (3, 3),
@@ -238,7 +207,6 @@ class AnomalyDetector:
                 iterations=1,
             )
 
-            # Encontra regiões conectadas.
             (
                 component_count,
                 _,
@@ -253,8 +221,6 @@ class AnomalyDetector:
                 image_bgr.shape[:2]
             )
 
-            # Converte posições da grade 32x32
-            # para pixels da imagem original.
             scale_x = (
                 image_width
                 / width
@@ -265,7 +231,6 @@ class AnomalyDetector:
                 / height
             )
 
-            # Remove regiões muito pequenas.
             min_component_area = 6
 
 
@@ -340,8 +305,6 @@ class AnomalyDetector:
                 )
 
 
-                # Mantém as coordenadas
-                # dentro dos limites da imagem.
                 x1 = max(
                     0,
                     min(

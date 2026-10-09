@@ -1,5 +1,3 @@
-"""Response models shared by the HTTP routes."""
-
 from pydantic import BaseModel
 
 

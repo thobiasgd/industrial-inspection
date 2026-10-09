@@ -7,18 +7,14 @@ def create_anomaly_visualization(
     anomaly_map: np.ndarray,
 ):
 
-    # Obtém as dimensões da imagem original.
     image_height, image_width = image_bgr.shape[:2]
 
-    # Amplia o mapa de 32x32 para o tamanho da imagem original.
     resized_map = cv2.resize(
         anomaly_map,
         (image_width, image_height),
         interpolation=cv2.INTER_LINEAR,
     )
 
-    # Converte os scores para uma escala de 0 a 255
-    # usada apenas para visualização.
     display_map = cv2.normalize(
         resized_map,
         None,
@@ -28,13 +24,11 @@ def create_anomaly_visualization(
         dtype=cv2.CV_8U,
     )
 
-    # Converte os valores em um mapa de cores.
     heatmap_bgr = cv2.applyColorMap(
         display_map,
         cv2.COLORMAP_INFERNO,
     )
 
-    # Sobrepõe o heatmap à imagem original.
     overlay_bgr = cv2.addWeighted(
         image_bgr,
         0.6,
@@ -50,7 +44,6 @@ def create_bounding_box_visualization(
     bounding_boxes: list[dict],
 ) -> np.ndarray:
 
-    # Cria uma cópia para não modificar a imagem original.
     output_image = image_bgr.copy()
 
     for box in bounding_boxes:
@@ -63,7 +56,6 @@ def create_bounding_box_visualization(
         x2 = x + box_width
         y2 = y + box_height
 
-        # Desenha a caixa da região suspeita.
         cv2.rectangle(
             output_image,
             (x, y),

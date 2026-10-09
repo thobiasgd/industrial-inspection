@@ -10,7 +10,6 @@ import { InspectionModule } from './inspection/inspection.module.js';
     ConfigModule.forRoot({
       isGlobal: true,
 
-      // Valida as variáveis antes de iniciar a aplicação.
       validate: validateEnv,
     }),
 

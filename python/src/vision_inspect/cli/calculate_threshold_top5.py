@@ -4,7 +4,6 @@ import torch
 
 
 def main() -> None:
-    # Define os caminhos principais.
     project_root = PROJECT_ROOT
 
     scores_path = (
@@ -26,7 +25,6 @@ def main() -> None:
         )
 
 
-    # Carrega as pontuações normais da métrica Top 5%.
     data = torch.load(
         scores_path,
         map_location="cpu",
@@ -36,7 +34,6 @@ def main() -> None:
     normal_scores = data["scores"]
 
 
-    # Calcula alguns percentis para analisarmos a distribuição.
     percentile_95 = torch.quantile(
         normal_scores,
         0.95,
@@ -50,8 +47,6 @@ def main() -> None:
     maximum = normal_scores.max().item()
 
 
-    # Mantém a mesma estratégia anterior:
-    # usa o percentil 99 como threshold inicial.
     threshold = percentile_99
 
 
@@ -62,7 +57,6 @@ def main() -> None:
     print(f"Selected threshold: {threshold:.4f}")
 
 
-    # Salva o threshold específico da métrica Top 5%.
     torch.save(
         {
             "threshold": threshold,

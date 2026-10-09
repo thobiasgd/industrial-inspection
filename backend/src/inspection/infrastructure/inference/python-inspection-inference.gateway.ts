@@ -20,7 +20,6 @@ export class PythonInspectionInferenceGateway
         image: Buffer,
     ): Promise<InspectionInferenceResult> {
 
-        // Cria o formulário enviado ao serviço Python.
         const formData = new FormData();
 
         const imageBlob = new Blob([
@@ -34,7 +33,6 @@ export class PythonInspectionInferenceGateway
         );
 
 
-        // Solicita a inferência.
         const response = await fetch(
             `${this.inferenceApiUrl}/inspect`,
             {
@@ -55,12 +53,10 @@ export class PythonInspectionInferenceGateway
 
         const data: unknown = await response.json();
 
-        // Valida o contrato recebido do Python.
         const parsed =
             pythonInspectionResponseSchema.parse(data);
 
 
-        // Adapta snake_case do Python para camelCase da aplicação.
         return {
             score: parsed.score,
             threshold: parsed.threshold,

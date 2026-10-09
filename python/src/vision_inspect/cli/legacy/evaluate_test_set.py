@@ -10,7 +10,6 @@ from torchvision.models.feature_extraction import create_feature_extractor
 
 
 def main() -> None:
-    # Define os caminhos principais do projeto.
     project_root = PROJECT_ROOT
 
     test_dir = project_root / "dados" / "mvtec" / "bottle" / "test"
@@ -24,7 +23,6 @@ def main() -> None:
     device = torch.device("cuda:0")
 
 
-    # Carrega o banco de características.
     memory_bank = torch.load(
         bank_path,
         map_location=device,
@@ -32,7 +30,6 @@ def main() -> None:
     )
 
 
-    # Carrega o threshold calculado anteriormente.
     threshold_data = torch.load(
         threshold_path,
         map_location="cpu",
@@ -42,7 +39,6 @@ def main() -> None:
     threshold = threshold_data["threshold"]
 
 
-    # Define o mesmo preprocessamento usado anteriormente.
     preprocess = transforms.Compose([
         transforms.ToTensor(),
         transforms.Resize((256, 256), antialias=True),
@@ -53,7 +49,6 @@ def main() -> None:
     ])
 
 
-    # Carrega a ResNet18 e cria o extrator de características.
     model = resnet18(
         weights=ResNet18_Weights.IMAGENET1K_V1
     )
@@ -66,14 +61,12 @@ def main() -> None:
     feature_extractor = feature_extractor.to(device).eval()
 
 
-    # Contadores da matriz de confusão.
     true_positive = 0
     true_negative = 0
     false_positive = 0
     false_negative = 0
 
 
-    # Lista para guardar resultados individuais.
     results = []
 
 
@@ -91,12 +84,10 @@ def main() -> None:
                 category_dir.glob("*.png")
             )
 
-            # A categoria "good" representa imagens normais.
             expected_defective = category_dir.name != "good"
 
             for image_path in image_paths:
 
-                # Lê a imagem.
                 image_bgr = cv2.imread(
                     str(image_path),
                     cv2.IMREAD_COLOR,
@@ -107,20 +98,17 @@ def main() -> None:
                         f"Could not read image: {image_path}"
                     )
 
-                # Converte de BGR para RGB.
                 image_rgb = cv2.cvtColor(
                     image_bgr,
                     cv2.COLOR_BGR2RGB,
                 )
 
-                # Prepara a imagem.
                 input_batch = (
                     preprocess(image_rgb)
                     .unsqueeze(0)
                     .to(device)
                 )
 
-                # Extrai as características.
                 feature_map = feature_extractor(
                     input_batch
                 )["features"]
@@ -133,7 +121,6 @@ def main() -> None:
                     .reshape(-1, channels)
                 )
 
-                # Calcula as distâncias.
                 distances = torch.cdist(
                     patch_features,
                     memory_bank,
@@ -146,7 +133,6 @@ def main() -> None:
                     .values
                 )
 
-                # Obtém a pontuação final da imagem.
                 anomaly_score = (
                     patch_scores
                     .max()
@@ -158,7 +144,6 @@ def main() -> None:
                 )
 
 
-                # Atualiza a matriz de confusão.
                 if expected_defective and predicted_defective:
                     true_positive += 1
 
@@ -200,7 +185,6 @@ def main() -> None:
     print("False positives:", false_positive)
     print("False negatives:", false_negative)
 
-    # Seleciona somente imagens defeituosas que foram aprovadas incorretamente.
     false_negatives = [
         result
         for result in results
@@ -219,7 +203,6 @@ def main() -> None:
             f' | Threshold: {threshold:.4f}'
         )
 
-    # Agrupa os resultados por categoria.
     categories_summary = {}
 
     for result in results:

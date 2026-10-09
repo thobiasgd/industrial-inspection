@@ -11,7 +11,6 @@ from torchvision.models.feature_extraction import create_feature_extractor
 
 
 def main() -> None:
-    # Define os caminhos principais do projeto.
     project_root = PROJECT_ROOT
 
     test_dir = project_root / "dados" / "mvtec" / "bottle" / "test"
@@ -24,7 +23,6 @@ def main() -> None:
     device = torch.device("cuda:0")
 
 
-    # Carrega o banco de características.
     memory_bank = torch.load(
         bank_path,
         map_location=device,
@@ -32,7 +30,6 @@ def main() -> None:
     )
 
 
-    # Carrega o threshold calculado anteriormente.
     threshold_data = torch.load(
         threshold_path,
         map_location="cpu",
@@ -42,7 +39,6 @@ def main() -> None:
     threshold = threshold_data["threshold"]
 
 
-    # Define o mesmo preprocessamento usado anteriormente.
     preprocess = transforms.Compose([
         transforms.ToTensor(),
         transforms.Resize((256, 256), antialias=True),
@@ -53,7 +49,6 @@ def main() -> None:
     ])
 
 
-    # Carrega a ResNet18 e cria o extrator de características.
     model = resnet18(
         weights=ResNet18_Weights.IMAGENET1K_V1
     )
@@ -66,14 +61,12 @@ def main() -> None:
     feature_extractor = feature_extractor.to(device).eval()
 
 
-    # Contadores da matriz de confusão.
     true_positive = 0
     true_negative = 0
     false_positive = 0
     false_negative = 0
 
 
-    # Lista para guardar resultados individuais.
     results = []
 
 
@@ -82,7 +75,6 @@ def main() -> None:
         if path.is_dir()
     )
 
-    # Guarda o tempo de processamento de cada imagem.
     processing_times = []
 
     with torch.inference_mode():
@@ -93,12 +85,10 @@ def main() -> None:
                 category_dir.glob("*.png")
             )
 
-            # A categoria "good" representa imagens normais.
             expected_defective = category_dir.name != "good"
 
             for image_path in image_paths:
 
-                # Lê a imagem.
                 image_bgr = cv2.imread(
                     str(image_path),
                     cv2.IMREAD_COLOR,
@@ -109,25 +99,21 @@ def main() -> None:
                         f"Could not read image: {image_path}"
                     )
 
-                # Garante que operações anteriores da GPU terminaram antes de iniciar o relógio.
                 torch.cuda.synchronize()
 
                 start_time = time.perf_counter()
 
-                # Converte de BGR para RGB.
                 image_rgb = cv2.cvtColor(
                     image_bgr,
                     cv2.COLOR_BGR2RGB,
                 )
 
-                # Prepara a imagem.
                 input_batch = (
                     preprocess(image_rgb)
                     .unsqueeze(0)
                     .to(device)
                 )
 
-                # Extrai as características.
                 feature_map = feature_extractor(
                     input_batch
                 )["features"]
@@ -140,7 +126,6 @@ def main() -> None:
                     .reshape(-1, channels)
                 )
 
-                # Calcula as distâncias.
                 distances = torch.cdist(
                     patch_features,
                     memory_bank,
@@ -153,20 +138,16 @@ def main() -> None:
                     .values
                 )
 
-                # Ordena os patches do mais anômalo para o menos anômalo.
                 sorted_scores = torch.sort(
                     patch_scores,
                     descending=True,
                 ).values
 
-                # Calcula quantos patches correspondem a 5% do mapa.
                 top_5_count = max(
                     1,
                     int(len(sorted_scores) * 0.05),
                 )
 
-                # Usa a média dos 5% patches mais anômalos
-                # como pontuação final da imagem.
                 anomaly_score = (
                     sorted_scores[:top_5_count]
                     .mean()
@@ -177,7 +158,6 @@ def main() -> None:
                     anomaly_score > threshold
                 )
 
-                # Aguarda a GPU concluir todo o processamento desta imagem.
                 torch.cuda.synchronize()
 
                 end_time = time.perf_counter()
@@ -189,7 +169,6 @@ def main() -> None:
                 processing_times.append(processing_time_ms)
 
 
-                # Atualiza a matriz de confusão.
                 if expected_defective and predicted_defective:
                     true_positive += 1
 
@@ -231,7 +210,6 @@ def main() -> None:
     print("False positives:", false_positive)
     print("False negatives:", false_negative)
 
-    # Seleciona somente imagens defeituosas que foram aprovadas incorretamente.
     false_negatives = [
         result
         for result in results
@@ -250,7 +228,6 @@ def main() -> None:
             f' | Threshold: {threshold:.4f}'
         )
 
-    # Agrupa os resultados por categoria.
     categories_summary = {}
 
     for result in results:
@@ -289,7 +266,6 @@ def main() -> None:
             f"({accuracy:.1f}%)"
         )
 
-    # Calcula a quantidade total de imagens avaliadas.
     total = (
         true_positive
         + true_negative
@@ -297,36 +273,30 @@ def main() -> None:
         + false_negative
     )
 
-    # Percentual total de classificações corretas.
     accuracy = (
         true_positive + true_negative
     ) / total
 
-    # Percentual dos defeitos que conseguimos detectar.
     recall = (
         true_positive
         / (true_positive + false_negative)
     )
 
-    # Entre tudo que rejeitamos, quanto realmente era defeituoso.
     precision = (
         true_positive
         / (true_positive + false_positive)
     )
 
-    # Percentual das peças boas corretamente aprovadas.
     specificity = (
         true_negative
         / (true_negative + false_positive)
     )
 
-    # Percentual de peças boas rejeitadas incorretamente.
     false_positive_rate = (
         false_positive
         / (false_positive + true_negative)
     )
 
-    # Combina precision e recall em uma única métrica.
     f1_score = (
         2 * precision * recall
         / (precision + recall)
@@ -341,7 +311,6 @@ def main() -> None:
     print(f"False positive rate: {false_positive_rate * 100:.2f}%")
     print(f"F1 score: {f1_score * 100:.2f}%")
 
-    # Ignora as primeiras imagens para reduzir o efeito do aquecimento inicial da GPU.
     warmup_images = 5
     measured_times = processing_times[warmup_images:]
 
@@ -349,8 +318,6 @@ def main() -> None:
     minimum_time = min(measured_times)
     maximum_time = max(measured_times)
 
-    # Estimativa de quantas imagens poderiam ser processadas por segundo,
-    # considerando o tempo médio de uma inspeção.
     fps = 1000 / average_time
 
 

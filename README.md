@@ -1,589 +1,291 @@
-# VisionInspect — Industrial Anomaly Detection
+# VisionInspect
 
-Sistema web de inspeção visual industrial para detectar anomalias em produtos a partir de imagens.
+**Inspeção visual de produtos com detecção de anomalias e processamento na GPU.**
 
-O projeto usa **PyTorch + OpenCV** para inferência na GPU, uma API de inferência em **FastAPI**, um backend **NestJS + TypeScript** organizado com separação entre aplicação e infraestrutura, e um frontend **React + TypeScript**.
+O VisionInspect é uma aplicação web que analisa imagens de produtos, identifica possíveis defeitos e apresenta as regiões suspeitas na interface. O projeto reúne visão computacional em Python, uma API de aplicação em NestJS e um frontend em React.
 
-> O protótipo foi desenvolvido e avaliado com a categoria **Bottle** do dataset MVTec AD.
+O protótipo foi desenvolvido com a categoria **Bottle** do dataset **MVTec AD**. O detector compara as características de uma imagem com referências de produtos sem defeito e retorna uma decisão de aprovação ou rejeição.
 
----
+## A aplicação
 
-## Visão geral
+<p align="center">
+  <img src="./docs/images/ui-empty-state.PNG" alt="Interface inicial do VisionInspect para envio de imagens" width="49%">
+  <img src="./docs/images/ui-overlay-result.PNG" alt="Resultado da inspeção com destaque visual das anomalias" width="49%">
+</p>
 
-O fluxo de uma inspeção é:
+Na interface, é possível:
+
+- selecionar uma imagem ou arrastá-la para a área de envio;
+- executar a inspeção e consultar a decisão **APPROVED** ou **REJECTED**;
+- comparar o score de anomalia com o limite de aprovação, chamado de threshold;
+- alternar entre a imagem original, o mapa de calor e a sobreposição das anomalias;
+- visualizar caixas delimitadoras sobre as regiões suspeitas.
+
+### Exemplos de detecção
+
+<p align="center">
+  <img src="./docs/images/overlay-broken-large.PNG" alt="Sobreposição de anomalias em uma garrafa quebrada" width="32%">
+  <img src="./docs/images/overlay-contamination.PNG" alt="Sobreposição de anomalias em uma garrafa com contaminação" width="32%">
+  <img src="./docs/images/heatmap-example.PNG" alt="Mapa de calor produzido pelo detector" width="32%">
+</p>
+
+## Como as partes se conectam
 
 ```mermaid
 flowchart LR
-    A[React] -->|multipart/form-data| B[NestJS API]
-    B --> C[InspectProductUseCase]
-    C --> D[InspectionInferenceGateway]
-    D -->|HTTP| E[FastAPI]
-    E --> F[AnomalyDetector]
-    F --> G[ResNet18 / PyTorch]
-    G --> H[RTX GPU]
-    F --> I[Score + decisão]
-    F --> J[Anomaly map]
-    J --> K[Heatmap / Overlay]
-    J --> L[Bounding boxes]
-    I --> E
-    K --> E
-    L --> E
-    E --> B
-    B --> A
+    A[Frontend React] -->|Imagem| B[Backend NestJS]
+    B -->|HTTP| C[API Python / FastAPI]
+    C --> D[Detector PyTorch / GPU]
+    D -->|Score e regiões suspeitas| C
+    C -->|Resultado e visualizações| B
+    B -->|Resposta da inspeção| A
 ```
 
-A interface permite:
+| Parte | Responsabilidade | Tecnologias principais |
+| --- | --- | --- |
+| Frontend | Envio de imagens e apresentação dos resultados | React, TypeScript, Vite e CSS |
+| Backend | Recebimento das inspeções, comunicação com o serviço Python e validação das respostas | NestJS, TypeScript e Zod |
+| Python | Preparação das referências, calibração, inferência e geração das visualizações | PyTorch, torchvision, OpenCV e FastAPI |
 
-- selecionar ou arrastar uma imagem;
-- executar a inspeção;
-- classificar a peça como **APPROVED** ou **REJECTED**;
-- visualizar o **anomaly score** e o threshold;
-- alternar entre imagem original, heatmap e overlay;
-- destacar regiões suspeitas com bounding boxes.
+O detector utiliza uma **ResNet18 pré-treinada** para extrair características das imagens. As referências normais ficam armazenadas em um banco de características, o *memory bank*. A média dos 5% patches mais anômalos determina o score da imagem: valores acima do threshold resultam em **REJECTED**; os demais, em **APPROVED**.
 
----
-
-## Interface e exemplos visuais
-
-### Aplicação web
-
-<p align="center">
-  <img src="./docs/images/ui-empty-state.PNG" alt="Tela inicial" width="49%">
-  <img src="./docs/images/ui-overlay-result.PNG" alt="Tela com resultado" width="49%">
-</p>
-
-### Exemplos de inspeção
-
-<p align="center">
-  <img src="./docs/images/overlay-broken-large.PNG" alt="Broken large" width="32%">
-  <img src="./docs/images/overlay-contamination.PNG" alt="Contamination" width="32%">
-  <img src="./docs/images/heatmap-example.PNG" alt="Heatmap" width="32%">
-</p>
-
-## Como o detector funciona
-
-O detector usa uma **ResNet18 pré-treinada no ImageNet** como extrator de características.
-
-A entrada é redimensionada para `256 × 256` e normalizada com os parâmetros associados aos pesos da ResNet18:
-
-```python
-mean = [0.485, 0.456, 0.406]
-std = [0.229, 0.224, 0.225]
-```
-
-São utilizadas as features intermediárias da `layer2`:
-
-```text
-Imagem
-  ↓
-Preprocessamento
-  ↓
-ResNet18
-  ↓
-layer2
-  ↓
-Feature map [128, 32, 32]
-  ↓
-1024 vetores de 128 características
-```
-
-Durante a construção da referência, features extraídas de imagens sem defeito são armazenadas em um **memory bank**.
-
-Na inspeção, cada patch da imagem é comparado com as referências normais pela distância Euclidiana. Para cada patch, é mantida a distância até a referência mais próxima.
-
-O score final da imagem é a média dos **5% patches mais anômalos**.
-
-```text
-patches
-  ↓
-distância até referências normais
-  ↓
-score por patch
-  ↓
-ordenação dos scores
-  ↓
-média dos 5% maiores
-  ↓
-anomaly score
-```
-
-A decisão é:
-
-```text
-score <= threshold  → APPROVED
-score >  threshold  → REJECTED
-```
-
-O threshold utilizado pelo protótipo é calibrado a partir de imagens normais, usando o **percentil 99** das pontuações de calibração.
-
----
-
-## Localização das anomalias
-
-Além da classificação da imagem, o detector produz um mapa espacial de anomalia.
-
-Os patches mais anômalos são convertidos em uma máscara binária. Em seguida, são aplicados:
-
-1. fechamento morfológico com OpenCV;
-2. componentes conectados;
-3. filtragem de componentes pequenos;
-4. conversão das regiões para coordenadas da imagem original.
-
-Essas regiões são retornadas como bounding boxes:
-
-```json
-{
-  "x": 253,
-  "y": 281,
-  "width": 366,
-  "height": 281
-}
-```
-
-A localização é uma aproximação baseada no mapa `32 × 32`, portanto não deve ser interpretada como segmentação precisa por pixel.
-
----
-
-## Resultados do protótipo
-
-Avaliação realizada com as **83 imagens de teste** da categoria Bottle do MVTec AD:
-
-| Métrica | Resultado |
-|---|---:|
-| Imagens avaliadas | 83 |
-| Defeituosas | 63 |
-| Normais | 20 |
-| True Positives | 63 |
-| True Negatives | 20 |
-| False Positives | 0 |
-| False Negatives | 0 |
-| Accuracy | 100.00% |
-| Recall / Defect detection rate | 100.00% |
-| Precision | 100.00% |
-| Specificity | 100.00% |
-| False positive rate | 0.00% |
-| F1 score | 100.00% |
-
-### Tempo de processamento
-
-Teste realizado em uma **NVIDIA GeForce RTX 3060 12 GB**:
-
-| Medida | Resultado |
-|---|---:|
-| Tempo médio | 17.18 ms |
-| Tempo mínimo | 10.20 ms |
-| Tempo máximo observado | 92.28 ms |
-| Throughput estimado | 58.19 imagens/s |
-
-O benchmark mediu o pipeline de preprocessamento, transferência para GPU, extração de features, comparação com o memory bank e decisão. Ele não representa necessariamente a latência total de uma implantação industrial com câmera, rede, persistência e interface.
-
-> **Importante:** 100% significa 100% **neste conjunto de teste e nesta configuração experimental**. Não implica 100% de desempenho em produção, com outras câmeras, produtos, iluminação, posicionamento ou distribuição de defeitos.
-
----
-
-## Stack
-
-### Visão computacional
-
-- Python 3.11
-- PyTorch
-- torchvision
-- OpenCV
-- NumPy
-- FastAPI
-- Uvicorn
-
-### Backend
-
-- Node.js
-- NestJS
-- TypeScript
-- Zod
-- pnpm
-
-### Frontend
-
-- React
-- TypeScript
-- Vite
-- Zod
-- CSS
-
----
-
-## Estrutura do projeto
+## Organização do repositório
 
 ```text
 industrial-inspection/
-├── backend/                    # API de aplicação NestJS
-│   └── src/
-│       ├── config/
-│       └── inspection/
-│           ├── application/
-│           ├── infrastructure/
-│           └── presentation/
-├── frontend/                   # Interface React
-│   └── src/
-├── python/                     # Projeto Python independente
-│   ├── pyproject.toml
-│   ├── requirements.txt
-│   ├── README.md
+├── frontend/
+├── backend/
+├── python/
 │   ├── src/vision_inspect/
-│   │   ├── config.py
-│   │   ├── detector.py
-│   │   ├── visualization.py
-│   │   ├── api/                # FastAPI e contratos HTTP
-│   │   └── cli/                # Calibração, avaliação e diagnóstico
-│   │       └── legacy/         # Experimentos anteriores
 │   ├── tests/
-│   ├── dados/                  # Dataset local
-│   └── artifacts/              # Modelos e calibração
-├── docs/
-└── .gitignore
+│   ├── dados/
+│   ├── artifacts/
+│   └── pyproject.toml
+├── docs/images/
+└── README.md
 ```
 
-A instalação editável permite executar os módulos Python de qualquer pasta. Veja os detalhes, comandos de diagnóstico e testes no [README do serviço Python](./python/README.md).
+Os diretórios `python/dados/` e `python/artifacts/` são locais e ignorados pelo Git. Eles são preenchidos durante a preparação descrita abaixo.
 
-O dataset e os artefatos gerados não são versionados:
+## Executar localmente
 
-```text
-python/dados/
-python/artifacts/
-```
+As instruções usam **Windows e PowerShell**. Execute os comandos a partir da **raiz do repositório**, inclusive ao abrir novos terminais.
 
----
+### 1. Pré-requisitos
 
-## Dataset
+| Requisito | Versão ou condição |
+| --- | --- |
+| Git | Instalado e disponível no terminal |
+| Python | 3.11, versão usada no desenvolvimento |
+| Node.js | 22.22.0, versão usada no desenvolvimento |
+| pnpm | 10; ambiente validado com 10.22.0 |
+| GPU | NVIDIA com driver compatível com o PyTorch CUDA 12.6 |
+| Dataset | Categoria Bottle do MVTec AD |
 
-O projeto usa a categoria **Bottle** do [MVTec AD](https://www.mvtec.com/company/research/datasets/mvtec-ad).
+A implementação atual exige CUDA para executar o detector. É necessário acesso à internet para instalar as dependências e baixar os pesos da ResNet18 na primeira execução, caso ainda não estejam em cache.
 
-O MVTec AD é disponibilizado sob **CC BY-NC-SA 4.0**. Verifique os termos oficiais antes de reutilizar o dataset, principalmente em contexto comercial.
-
-Após baixar e extrair a categoria Bottle, a estrutura esperada é:
-
-```text
-python/dados/
-└── mvtec/
-    └── bottle/
-        ├── train/
-        │   └── good/
-        ├── test/
-        │   ├── broken_large/
-        │   ├── broken_small/
-        │   ├── contamination/
-        │   └── good/
-        └── ground_truth/
-            ├── broken_large/
-            ├── broken_small/
-            └── contamination/
-```
-
----
-
-# Executando localmente
-
-## 1. Clonar o repositório
+### 2. Clonar o projeto
 
 ```powershell
 git clone https://github.com/thobiasgd/industrial-inspection.git
 cd industrial-inspection
 ```
 
----
+### 3. Preparar o ambiente Python
 
-## 2. Criar o ambiente Python
-
-No Windows:
+Crie e ative o ambiente virtual:
 
 ```powershell
 python -m venv python/.venv
+.\python\.venv\Scripts\Activate.ps1
 ```
 
-Ative:
+Se o PowerShell bloquear a ativação, libere a execução de scripts para a sessão atual e tente novamente:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
 .\python\.venv\Scripts\Activate.ps1
 ```
 
-Atualize o pip:
+Instale primeiro o PyTorch com CUDA e, em seguida, o pacote do projeto:
 
 ```powershell
 python -m pip install --upgrade pip
-```
-
-### PyTorch com CUDA
-
-A configuração usada durante o desenvolvimento foi:
-
-- PyTorch 2.10.0
-- torchvision 0.25.0
-- CUDA 12.6
-
-```powershell
 python -m pip install torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu126
-```
-
-Depois instale o pacote Python e as dependências de desenvolvimento e visualização, a partir da raiz do repositório:
-
-```powershell
 python -m pip install -e "./python[dev,visualization]"
-```
-
-Verifique a GPU:
-
-```powershell
 python -m vision_inspect.cli.check_gpu
 ```
 
-A aplicação atual exige CUDA disponível. Se você já possui uma `.venv` na raiz, pode reutilizá-la e executar apenas a instalação editável acima; não mova o ambiente virtual existente.
+O último comando deve identificar a GPU e concluir o teste com sucesso.
 
----
+Se você já utiliza uma `.venv` na raiz, pode ativá-la com `.\.venv\Scripts\Activate.ps1` e reutilizá-la para a instalação. Nos próximos passos, ative sempre o ambiente em que o pacote `vision-inspect` foi instalado.
 
-## 3. Gerar os artefatos do detector
+### 4. Preparar o dataset e os artefatos
 
-Os arquivos `.pt` são gerados localmente e ficam em `python/artifacts/`, que é ignorado pelo Git.
+Baixe a categoria **Bottle** na [página oficial do MVTec AD](https://www.mvtec.com/company/research/datasets/mvtec-ad), onde também estão os termos de uso do dataset. Extraia os arquivos para obter esta estrutura:
 
-### 3.1 Memory bank
+```text
+python/dados/mvtec/bottle/
+├── train/
+│   └── good/
+├── test/
+│   ├── broken_large/
+│   ├── broken_small/
+│   ├── contamination/
+│   └── good/
+└── ground_truth/
+    ├── broken_large/
+    ├── broken_small/
+    └── contamination/
+```
 
-Com o dataset Bottle em `python/dados/mvtec/bottle`:
+Com o ambiente Python ativo, execute os comandos nesta ordem:
 
 ```powershell
 python -m vision_inspect.cli.build_memory_bank
-```
-
-Isso gera:
-
-```text
-python/artifacts/memory_bank.pt
-```
-
-O protótipo usa as primeiras 20 imagens normais ordenadas pelo nome como conjunto de referência.
-
-### 3.2 Scores normais para calibração
-
-```powershell
 python -m vision_inspect.cli.collect_normal_scores_top5
-```
-
-Isso gera:
-
-```text
-python/artifacts/normal_scores_top5.pt
-```
-
-### 3.3 Threshold
-
-```powershell
 python -m vision_inspect.cli.calculate_threshold_top5
 ```
 
-Isso gera:
+| Comando | Arquivo gerado em `python/artifacts/` |
+| --- | --- |
+| `build_memory_bank` | `memory_bank.pt` |
+| `collect_normal_scores_top5` | `normal_scores_top5.pt` |
+| `calculate_threshold_top5` | `threshold_top5.pt` |
 
-```text
-python/artifacts/threshold_top5.pt
-```
+A API precisa de `memory_bank.pt` e `threshold_top5.pt` para iniciar. Se você já possui esses artefatos gerados para esta configuração, pode reutilizá-los sem executar novamente a preparação.
 
----
-
-## 4. Avaliar o detector
-
-```powershell
-python -m vision_inspect.cli.evaluate_test_set_top5
-```
-
-O script imprime:
-
-- matriz de confusão;
-- desempenho por categoria;
-- accuracy;
-- recall;
-- precision;
-- specificity;
-- false positive rate;
-- F1 score;
-- tempo de processamento.
-
----
-
-## 5. Iniciar a API Python
-
-Na raiz:
+### 5. Instalar e configurar backend e frontend
 
 ```powershell
-python -m uvicorn vision_inspect.api.app:app --host 127.0.0.1 --port 8000
+pnpm --dir backend install --frozen-lockfile
+pnpm --dir frontend install --frozen-lockfile
 ```
 
-Health check:
+Crie os arquivos de ambiente a partir dos exemplos. Se já existirem, preserve os arquivos atuais e confira os valores abaixo.
 
 ```powershell
-curl.exe http://127.0.0.1:8000/health
-```
-
-Resposta esperada:
-
-```json
-{
-  "status": "ready",
-  "device": "cuda:0"
+if (-not (Test-Path backend/.env)) {
+    Copy-Item backend/.env.example backend/.env
+}
+if (-not (Test-Path frontend/.env)) {
+    Copy-Item frontend/.env.example frontend/.env
 }
 ```
 
----
-
-## 6. Iniciar o backend NestJS
-
-Em outro terminal:
-
-```powershell
-cd backend
-pnpm install
-Copy-Item .env.example .env
-pnpm start:dev
-```
-
-Configuração padrão:
+Em `backend/.env`:
 
 ```env
 PORT=3050
 INFERENCE_API_URL=http://127.0.0.1:8000
 ```
 
-Status:
-
-```powershell
-curl.exe http://localhost:3050/inspections/status
-```
-
----
-
-## 7. Iniciar o frontend
-
-Em outro terminal:
-
-```powershell
-cd frontend
-pnpm install
-Copy-Item .env.example .env
-pnpm dev
-```
-
-Configuração padrão:
+Em `frontend/.env`:
 
 ```env
 VITE_API_URL=http://localhost:3050
 ```
 
-Abra:
+### 6. Iniciar os três serviços
 
-```text
-http://localhost:5173
+Mantenha um terminal aberto para cada serviço, todos partindo da raiz do repositório.
+
+**Terminal 1 — API Python**
+
+```powershell
+.\python\.venv\Scripts\Activate.ps1
+python -m uvicorn vision_inspect.api.app:app --host 127.0.0.1 --port 8000
 ```
 
----
+Se estiver reutilizando a `.venv` da raiz, substitua o comando de ativação por `.\.venv\Scripts\Activate.ps1`.
 
-## Serviços em desenvolvimento
+**Terminal 2 — backend**
 
-```text
-React / Vite    → http://localhost:5173
-NestJS          → http://localhost:3050
-FastAPI/PyTorch → http://127.0.0.1:8000
+```powershell
+pnpm --dir backend start:dev
 ```
 
----
+**Terminal 3 — frontend**
 
-## Exemplo de resposta da inspeção
-
-O backend retorna um contrato semelhante a:
-
-```json
-{
-  "score": 2.6701,
-  "threshold": 2.2029,
-  "decision": "REJECTED",
-  "imageWidth": 900,
-  "imageHeight": 900,
-  "boundingBoxes": [
-    {
-      "x": 253,
-      "y": 281,
-      "width": 366,
-      "height": 281
-    }
-  ],
-  "heatmapBase64": "...",
-  "overlayBase64": "..."
-}
+```powershell
+pnpm --dir frontend dev --port 5173 --strictPort
 ```
 
----
+| Serviço | Endereço |
+| --- | --- |
+| Interface web | [http://localhost:5173](http://localhost:5173) |
+| Backend | [http://localhost:3050/inspections/status](http://localhost:3050/inspections/status) |
+| Status do detector | [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health) |
+| Documentação da API Python | [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) |
 
-## Arquitetura do backend
+A interface usa a porta `5173`, que está autorizada no CORS do backend. O parâmetro `--strictPort` evita que o Vite selecione outra porta silenciosamente.
 
-O NestJS não conhece detalhes de PyTorch diretamente.
+### 7. Fazer a primeira inspeção
 
-```text
-InspectionController
-        ↓
-InspectProductUseCase
-        ↓
-InspectionInferenceGateway
-        ↑
-PythonInspectionInferenceGateway
-        ↓
-FastAPI
+Abra [http://localhost:5173](http://localhost:5173), selecione uma imagem de `python/dados/mvtec/bottle/test/` e execute a inspeção. Use uma imagem de `good/` para testar uma peça normal ou de uma das demais categorias para testar defeitos.
+
+Para conferir os serviços pelo terminal:
+
+```powershell
+curl.exe http://127.0.0.1:8000/health
+curl.exe http://localhost:3050/inspections/status
 ```
 
-A camada de aplicação depende de um contrato (`InspectionInferenceGateway`). A implementação HTTP que conversa com Python fica na infraestrutura.
+A API Python deve responder com `status: ready` e `device: cuda:0`. O status do backend confirma que o módulo de inspeção está ativo; a disponibilidade do detector é verificada separadamente pelo endpoint `/health` do Python.
 
-O gateway também adapta o contrato externo:
+Também é possível enviar uma imagem diretamente ao backend, a partir da raiz:
 
-```text
-Python / snake_case            Nest / camelCase
-
-image_width             →      imageWidth
-image_height            →      imageHeight
-bounding_boxes          →      boundingBoxes
-heatmap_base64          →      heatmapBase64
-overlay_base64          →      overlayBase64
+```powershell
+curl.exe -X POST http://localhost:3050/inspections -F "image=@python/dados/mvtec/bottle/test/contamination/000.png"
 ```
 
-As respostas externas são validadas em runtime com **Zod**.
+A resposta contém o score, o threshold, a decisão, as dimensões da imagem, as caixas delimitadoras e as visualizações codificadas em Base64.
 
----
+## Verificações
 
-## Limitações atuais
+Para avaliar o detector com as imagens do dataset, mantenha o ambiente Python ativo:
 
-Este é um projeto demonstrativo e possui limitações importantes:
+```powershell
+python -m vision_inspect.cli.evaluate_test_set_top5
+```
 
-- foi calibrado apenas para a categoria Bottle do MVTec AD;
-- o memory bank é construído com um subconjunto fixo de imagens normais;
-- o threshold foi calibrado para este dataset e esta configuração;
-- iluminação, câmera, fundo e posicionamento diferentes podem alterar bastante os scores;
-- bounding boxes são aproximações derivadas de um mapa espacial `32 × 32`;
-- o heatmap é normalizado individualmente para visualização e suas cores não representam probabilidade;
-- a aplicação exige atualmente uma GPU CUDA;
-- os resultados do benchmark não incluem toda a latência de uma linha industrial real.
+Para executar os testes automatizados e verificar a compilação das aplicações:
 
-Para uso industrial real seria necessário, entre outros pontos, coletar dados do ambiente alvo, validar falsos positivos/falsos negativos em produção, definir requisitos de latência, tratar drift de distribuição e estabelecer um processo de recalibração.
+```powershell
+python -m pytest python/tests
+pnpm --dir backend test
+pnpm --dir backend build
+pnpm --dir frontend build
+```
 
----
+Os testes automatizados Python utilizam um detector simulado. A avaliação do dataset executa a inferência real e requer GPU e artefatos.
 
-## Próximas melhorias possíveis
+## Resultados e escopo do protótipo
 
-- histórico persistente das inspeções;
-- banco de dados para resultados;
-- captura direta de câmera;
-- métricas e dashboard de produção;
-- calibração por produto;
-- modelos/configurações por linha industrial;
-- melhorias na localização de defeitos pequenos;
-- testes automatizados de integração;
-- containerização dos serviços;
-- autenticação e controle de acesso.
+A avaliação local com as **83 imagens de teste da categoria Bottle** apresentou:
 
----
+| Resultado | Quantidade |
+| --- | ---: |
+| Imagens defeituosas corretamente rejeitadas | 63 |
+| Imagens normais corretamente aprovadas | 20 |
+| Falsos positivos | 0 |
+| Falsos negativos | 0 |
+| Acurácia nesse conjunto | 100% |
 
-## Motivação
+Esses resultados se referem ao dataset e à configuração avaliados. O uso com outros produtos, câmeras ou condições de iluminação exige novas referências, calibração e validação. As caixas delimitadoras representam uma localização aproximada, e as cores do mapa de calor não representam probabilidades.
 
-O objetivo deste projeto é demonstrar um fluxo completo de visão computacional aplicado à inspeção industrial: da construção de uma referência de normalidade e inferência na GPU até uma interface web utilizável, mantendo a inferência desacoplada da API de aplicação.
+## Problemas comuns ao iniciar
+
+| Situação | O que verificar |
+| --- | --- |
+| `CUDA is not available` | Execute `python -m vision_inspect.cli.check_gpu` no ambiente ativo e confira a instalação do PyTorch com CUDA e o driver da GPU. |
+| `Memory bank not found` ou `Threshold not found` | Confira os arquivos em `python/artifacts/` e execute a preparação na ordem indicada. |
+| `No module named vision_inspect` | Ative o ambiente correto e execute `python -m pip install -e "./python[dev,visualization]"` na raiz. |
+| A interface abre, mas a inspeção falha | Confira os três serviços, as URLs dos arquivos `.env` e o endpoint Python `/health`. |
+| Porta `5173` ocupada | Libere a porta antes de iniciar o frontend; outra porta também exigiria ajustar o CORS do backend. |
+
+## Documentação por componente
+
+- [Frontend](./frontend/README.md)
+- [Backend](./backend/README.md)
+- [Python](./python/README.md)

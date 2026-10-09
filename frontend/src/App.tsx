@@ -153,8 +153,6 @@ function App() {
 
       setInspectionResult(result);
 
-      // Após a inspeção, mostra automaticamente
-      // a visualização mais útil para o operador.
       setActiveView('overlay');
     } catch (err) {
       setError(
@@ -203,7 +201,6 @@ function App() {
     <div className="app">
       <div className="app-container">
 
-        {/* Top bar */}
         <header className="topbar">
           <div className="brand">
             <div className="brand-icon">
@@ -238,10 +235,8 @@ function App() {
         </header>
 
 
-        {/* Workspace */}
         <div className="workspace">
 
-          {/* Sidebar */}
           <aside className="sidebar">
 
             <div className="sidebar-heading">
@@ -399,7 +394,6 @@ function App() {
           </aside>
 
 
-          {/* Inspection viewport */}
           <section className="inspection-viewport">
 
             <div className="viewport-header">

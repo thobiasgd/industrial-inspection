@@ -14,7 +14,6 @@ export class InspectProductUseCase {
             throw new Error('Image cannot be empty.');
         }
 
-        // Solicita a inferência através do contrato da aplicação.
         const result = await this.inferenceGateway.inspect(
             input.image,
         );

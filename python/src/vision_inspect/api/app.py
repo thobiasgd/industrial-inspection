@@ -12,7 +12,6 @@ from vision_inspect.visualization import create_anomaly_visualization
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Carrega o modelo uma vez por processo, ao iniciar o servidor.
     app.state.detector = AnomalyDetector()
     try:
         yield
@@ -23,7 +22,6 @@ async def lifespan(app: FastAPI):
 def encode_image_to_base64(
     image_bgr: np.ndarray,
 ) -> str:
-    # Codifica a imagem OpenCV como PNG em memória.
     success, encoded_image = cv2.imencode(
         ".png",
         image_bgr,
@@ -34,7 +32,6 @@ def encode_image_to_base64(
             "Could not encode image to PNG."
         )
 
-    # Converte os bytes do PNG para uma string Base64.
     return base64.b64encode(
         encoded_image.tobytes()
     ).decode("utf-8")
@@ -64,7 +61,6 @@ async def inspect_image(
     image: UploadFile = File(...),
 ) -> InspectionResponse:
 
-    # Lê a imagem enviada pela API.
     image_bytes = await image.read()
 
     if not image_bytes:
@@ -73,13 +69,11 @@ async def inspect_image(
             detail="Image is empty.",
         )
 
-    # Converte os bytes para uma matriz NumPy.
     image_array = np.frombuffer(
         image_bytes,
         dtype=np.uint8,
     )
 
-    # Decodifica a imagem para o formato BGR do OpenCV.
     image_bgr = cv2.imdecode(
         image_array,
         cv2.IMREAD_COLOR,
@@ -91,12 +85,10 @@ async def inspect_image(
             detail="Invalid image.",
         )
 
-    # Executa a inferência.
     result = request.app.state.detector.inspect(
         image_bgr
     )
 
-    # Cria o heatmap e o overlay.
     heatmap_bgr, overlay_bgr = (
         create_anomaly_visualization(
             image_bgr,
@@ -104,7 +96,6 @@ async def inspect_image(
         )
     )
 
-    # Obtém as dimensões da imagem original.
     image_height, image_width = (
         image_bgr.shape[:2]
     )
