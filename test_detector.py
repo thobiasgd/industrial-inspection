@@ -3,8 +3,10 @@ from pathlib import Path
 import cv2
 
 from anomaly_detector import AnomalyDetector
-from visualization import create_anomaly_visualization
-
+from visualization import (
+    create_anomaly_visualization,
+    create_bounding_box_visualization,
+)
 # Localiza a raiz do projeto.
 project_root = Path(__file__).resolve().parent
 
@@ -44,10 +46,21 @@ print(f"Threshold: {result['threshold']:.4f}")
 print("Decision:", result["decision"])
 print("Anomaly map shape:", result["anomaly_map"].shape)
 
+print(
+    "Bounding boxes:",
+    result["bounding_boxes"],
+)
+
 # Gera o heatmap e a sobreposição visual.
 heatmap_bgr, overlay_bgr = create_anomaly_visualization(
     image_bgr,
     result["anomaly_map"],
+)
+
+# Desenha as regiões suspeitas sobre a imagem original.
+boxes_bgr = create_bounding_box_visualization(
+    image_bgr,
+    result["bounding_boxes"],
 )
 
 # Monta uma visualização lado a lado.
@@ -55,12 +68,13 @@ preview = cv2.hconcat([
     image_bgr,
     heatmap_bgr,
     overlay_bgr,
+    boxes_bgr,
 ])
 
 window_name = (
     f"{result['decision']} | "
     f"Score: {result['score']:.4f} | "
-    f"Threshold: {result['threshold']:.4f}"
+    "Original | Heatmap | Overlay | Bounding boxes"
 )
 
 cv2.namedWindow(

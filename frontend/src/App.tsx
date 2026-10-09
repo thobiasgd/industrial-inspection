@@ -487,11 +487,47 @@ function App() {
 
 
               {activeImage && (
-                <img
-                  className="inspection-image"
-                  src={activeImage}
-                  alt={`Inspection ${activeView}`}
-                />
+                <div className="inspection-stage">
+
+                  <img
+                    className="inspection-image"
+                    src={activeImage}
+                    alt={`Inspection ${activeView}`}
+                  />
+
+
+                  {inspectionResult
+                    && inspectionResult.decision === 'REJECTED'
+                    && activeView === 'overlay'
+                    && inspectionResult.boundingBoxes.length > 0
+                    && (
+                      <svg
+                        className="bounding-box-layer"
+                        viewBox={
+                          `0 0 ${inspectionResult.imageWidth} ${inspectionResult.imageHeight}`
+                        }
+                        preserveAspectRatio="xMidYMid meet"
+                        aria-hidden="true"
+                      >
+                        {inspectionResult.boundingBoxes.map(
+                          (box, index) => (
+                            <rect
+                              key={
+                                `${box.x}-${box.y}-${index}`
+                              }
+                              className="defect-box"
+                              x={box.x}
+                              y={box.y}
+                              width={box.width}
+                              height={box.height}
+                              vectorEffect="non-scaling-stroke"
+                            />
+                          ),
+                        )}
+                      </svg>
+                    )}
+
+                </div>
               )}
 
 

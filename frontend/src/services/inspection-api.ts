@@ -7,14 +7,34 @@ const inspectionStatusSchema = z.object({
 });
 
 
+const boundingBoxSchema = z.object({
+    x: z.number().nonnegative(),
+    y: z.number().nonnegative(),
+
+    width: z.number().positive(),
+    height: z.number().positive(),
+});
+
+
 const inspectionResultSchema = z.object({
     score: z.number(),
+
     threshold: z.number(),
 
     decision: z.enum([
         'APPROVED',
         'REJECTED',
     ]),
+
+    imageWidth: z.number()
+        .positive(),
+
+    imageHeight: z.number()
+        .positive(),
+
+    boundingBoxes: z.array(
+        boundingBoxSchema,
+    ),
 
     heatmapBase64: z.string(),
     overlayBase64: z.string(),
@@ -53,8 +73,6 @@ export async function getInspectionStatus(): Promise<InspectionStatus> {
 export async function inspectProduct(
     image: File,
 ): Promise<InspectionResult> {
-
-    // Monta o multipart/form-data que o Nest espera.
     const formData = new FormData();
 
     formData.append(
@@ -78,6 +96,5 @@ export async function inspectProduct(
 
     const data: unknown = await response.json();
 
-    // Valida em runtime a resposta recebida do backend.
     return inspectionResultSchema.parse(data);
 }

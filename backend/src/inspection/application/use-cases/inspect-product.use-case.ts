@@ -23,6 +23,11 @@ export class InspectProductUseCase {
             result.score,
             result.threshold,
             result.decision,
+
+            result.imageWidth,
+            result.imageHeight,
+            result.boundingBoxes,
+
             result.heatmapBase64,
             result.overlayBase64,
         );

@@ -1,3 +1,11 @@
+export interface InspectionBoundingBox {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
+
 export interface InspectionInferenceResult {
     score: number;
     threshold: number;
@@ -5,6 +13,11 @@ export interface InspectionInferenceResult {
     decision:
     | "APPROVED"
     | "REJECTED";
+
+    imageWidth: number;
+    imageHeight: number;
+
+    boundingBoxes: InspectionBoundingBox[];
 
     heatmapBase64: string;
     overlayBase64: string;

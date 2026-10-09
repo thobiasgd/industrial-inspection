@@ -17,6 +17,18 @@ export class FakeInspectionInferenceGateway
             threshold: 2.2029,
             decision: "REJECTED",
 
+            imageWidth: 900,
+            imageHeight: 900,
+
+            boundingBoxes: [
+                {
+                    x: 250,
+                    y: 280,
+                    width: 360,
+                    height: 280,
+                },
+            ],
+
             heatmapBase64: "",
             overlayBase64: "",
         };

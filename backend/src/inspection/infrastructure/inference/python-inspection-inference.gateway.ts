@@ -2,7 +2,11 @@ import {
     InspectionInferenceGateway,
     InspectionInferenceResult,
 } from "../../application/ports/inspection-inference.gateway.js";
-import { pythonInspectionResponseSchema } from "./schemas/python-inspection-response.schema.js";
+
+import {
+    pythonInspectionResponseSchema,
+} from "./schemas/python-inspection-response.schema.js";
+
 
 export class PythonInspectionInferenceGateway
     implements InspectionInferenceGateway {
@@ -16,7 +20,7 @@ export class PythonInspectionInferenceGateway
         image: Buffer,
     ): Promise<InspectionInferenceResult> {
 
-        // Cria o formulário multipart que será enviado ao FastAPI.
+        // Cria o formulário enviado ao serviço Python.
         const formData = new FormData();
 
         const imageBlob = new Blob([
@@ -30,7 +34,7 @@ export class PythonInspectionInferenceGateway
         );
 
 
-        // Envia a imagem para o serviço Python.
+        // Solicita a inferência.
         const response = await fetch(
             `${this.inferenceApiUrl}/inspect`,
             {
@@ -40,7 +44,6 @@ export class PythonInspectionInferenceGateway
         );
 
 
-        // Trata erros HTTP retornados pelo FastAPI.
         if (!response.ok) {
             const responseBody = await response.text();
 
@@ -50,21 +53,23 @@ export class PythonInspectionInferenceGateway
         }
 
 
-        // A resposta HTTP é externa, então inicialmente tratamos como unknown.
         const data: unknown = await response.json();
 
-
-        // Valida em runtime se o Python retornou a estrutura esperada.
+        // Valida o contrato recebido do Python.
         const parsed =
             pythonInspectionResponseSchema.parse(data);
 
 
-        // Converte o contrato snake_case do Python
-        // para o padrão camelCase usado dentro da aplicação Nest.
+        // Adapta snake_case do Python para camelCase da aplicação.
         return {
             score: parsed.score,
             threshold: parsed.threshold,
             decision: parsed.decision,
+
+            imageWidth: parsed.image_width,
+            imageHeight: parsed.image_height,
+
+            boundingBoxes: parsed.bounding_boxes,
 
             heatmapBase64: parsed.heatmap_base64,
             overlayBase64: parsed.overlay_base64,
