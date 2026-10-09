@@ -1,34 +1,23 @@
 import base64
-from pathlib import Path
+from contextlib import asynccontextmanager
 
 import cv2
 import numpy as np
-from fastapi import FastAPI, File, HTTPException, UploadFile
-from pydantic import BaseModel
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 
-from anomaly_detector import AnomalyDetector
-from visualization import create_anomaly_visualization
-
-
-class BoundingBoxResponse(BaseModel):
-    x: int
-    y: int
-    width: int
-    height: int
+from vision_inspect.api.schemas import InspectionResponse
+from vision_inspect.detector import AnomalyDetector
+from vision_inspect.visualization import create_anomaly_visualization
 
 
-class InspectionResponse(BaseModel):
-    score: float
-    threshold: float
-    decision: str
-
-    image_width: int
-    image_height: int
-
-    bounding_boxes: list[BoundingBoxResponse]
-
-    heatmap_base64: str
-    overlay_base64: str
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Carrega o modelo uma vez por processo, ao iniciar o servidor.
+    app.state.detector = AnomalyDetector()
+    try:
+        yield
+    finally:
+        del app.state.detector
 
 
 def encode_image_to_base64(
@@ -51,26 +40,18 @@ def encode_image_to_base64(
     ).decode("utf-8")
 
 
-project_root = Path(__file__).resolve().parent
-
-
 app = FastAPI(
     title="Inspection Inference API",
     version="1.0.0",
-)
-
-
-# Inicializa o modelo apenas uma vez.
-detector = AnomalyDetector(
-    project_root
+    lifespan=lifespan,
 )
 
 
 @app.get("/health")
-def health():
+def health(request: Request):
     return {
         "status": "ready",
-        "device": str(detector.device),
+        "device": str(request.app.state.detector.device),
     }
 
 
@@ -79,6 +60,7 @@ def health():
     response_model=InspectionResponse,
 )
 async def inspect_image(
+    request: Request,
     image: UploadFile = File(...),
 ) -> InspectionResponse:
 
@@ -110,7 +92,7 @@ async def inspect_image(
         )
 
     # Executa a inferência.
-    result = detector.inspect(
+    result = request.app.state.detector.inspect(
         image_bgr
     )
 

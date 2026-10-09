@@ -6,10 +6,12 @@ from torchvision import transforms
 from torchvision.models import ResNet18_Weights, resnet18
 from torchvision.models.feature_extraction import create_feature_extractor
 
+from vision_inspect.config import PROJECT_ROOT
+
 
 class AnomalyDetector:
 
-    def __init__(self, project_root: Path):
+    def __init__(self, project_root: Path = PROJECT_ROOT):
 
         # Define o dispositivo usado pelo detector.
         if not torch.cuda.is_available():

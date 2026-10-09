@@ -215,41 +215,40 @@ O benchmark mediu o pipeline de preprocessamento, transferência para GPU, extra
 
 ```text
 industrial-inspection/
-├── backend/
+├── backend/                    # API de aplicação NestJS
 │   └── src/
 │       ├── config/
 │       └── inspection/
 │           ├── application/
-│           │   ├── dto/
-│           │   ├── ports/
-│           │   └── use-cases/
 │           ├── infrastructure/
-│           │   └── inference/
 │           └── presentation/
-│               └── controllers/
-│
-├── frontend/
+├── frontend/                   # Interface React
 │   └── src/
-│       ├── services/
-│       ├── App.tsx
-│       └── App.css
-│
-├── anomaly_detector.py
-├── inference_api.py
-├── visualization.py
-├── image_preparation.py
-├── collect_normal_scores_top5.py
-├── calculate_threshold_top5.py
-├── evaluate_test_set_top5.py
-├── requirements.txt
+├── python/                     # Projeto Python independente
+│   ├── pyproject.toml
+│   ├── requirements.txt
+│   ├── README.md
+│   ├── src/vision_inspect/
+│   │   ├── config.py
+│   │   ├── detector.py
+│   │   ├── visualization.py
+│   │   ├── api/                # FastAPI e contratos HTTP
+│   │   └── cli/                # Calibração, avaliação e diagnóstico
+│   │       └── legacy/         # Experimentos anteriores
+│   ├── tests/
+│   ├── dados/                  # Dataset local
+│   └── artifacts/              # Modelos e calibração
+├── docs/
 └── .gitignore
 ```
+
+A instalação editável permite executar os módulos Python de qualquer pasta. Veja os detalhes, comandos de diagnóstico e testes no [README do serviço Python](./python/README.md).
 
 O dataset e os artefatos gerados não são versionados:
 
 ```text
-dados/
-artifacts/
+python/dados/
+python/artifacts/
 ```
 
 ---
@@ -263,7 +262,7 @@ O MVTec AD é disponibilizado sob **CC BY-NC-SA 4.0**. Verifique os termos ofici
 Após baixar e extrair a categoria Bottle, a estrutura esperada é:
 
 ```text
-dados/
+python/dados/
 └── mvtec/
     └── bottle/
         ├── train/
@@ -297,14 +296,14 @@ cd industrial-inspection
 No Windows:
 
 ```powershell
-python -m venv .venv
+python -m venv python/.venv
 ```
 
 Ative:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
-.\.venv\Scripts\Activate.ps1
+.\python\.venv\Scripts\Activate.ps1
 ```
 
 Atualize o pip:
@@ -325,38 +324,38 @@ A configuração usada durante o desenvolvimento foi:
 python -m pip install torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu126
 ```
 
-Depois instale as demais dependências:
+Depois instale o pacote Python e as dependências de desenvolvimento e visualização, a partir da raiz do repositório:
 
 ```powershell
-python -m pip install -r requirements.txt
+python -m pip install -e "./python[dev,visualization]"
 ```
 
 Verifique a GPU:
 
 ```powershell
-python .\teste_gpu.py
+python -m vision_inspect.cli.check_gpu
 ```
 
-A aplicação atual exige CUDA disponível.
+A aplicação atual exige CUDA disponível. Se você já possui uma `.venv` na raiz, pode reutilizá-la e executar apenas a instalação editável acima; não mova o ambiente virtual existente.
 
 ---
 
 ## 3. Gerar os artefatos do detector
 
-Os arquivos `.pt` são gerados localmente e ficam em `artifacts/`, que é ignorado pelo Git.
+Os arquivos `.pt` são gerados localmente e ficam em `python/artifacts/`, que é ignorado pelo Git.
 
 ### 3.1 Memory bank
 
-Com o dataset Bottle em `dados/mvtec/bottle`:
+Com o dataset Bottle em `python/dados/mvtec/bottle`:
 
 ```powershell
-python .\image_preparation.py
+python -m vision_inspect.cli.build_memory_bank
 ```
 
 Isso gera:
 
 ```text
-artifacts/memory_bank.pt
+python/artifacts/memory_bank.pt
 ```
 
 O protótipo usa as primeiras 20 imagens normais ordenadas pelo nome como conjunto de referência.
@@ -364,25 +363,25 @@ O protótipo usa as primeiras 20 imagens normais ordenadas pelo nome como conjun
 ### 3.2 Scores normais para calibração
 
 ```powershell
-python .\collect_normal_scores_top5.py
+python -m vision_inspect.cli.collect_normal_scores_top5
 ```
 
 Isso gera:
 
 ```text
-artifacts/normal_scores_top5.pt
+python/artifacts/normal_scores_top5.pt
 ```
 
 ### 3.3 Threshold
 
 ```powershell
-python .\calculate_threshold_top5.py
+python -m vision_inspect.cli.calculate_threshold_top5
 ```
 
 Isso gera:
 
 ```text
-artifacts/threshold_top5.pt
+python/artifacts/threshold_top5.pt
 ```
 
 ---
@@ -390,7 +389,7 @@ artifacts/threshold_top5.pt
 ## 4. Avaliar o detector
 
 ```powershell
-python .\evaluate_test_set_top5.py
+python -m vision_inspect.cli.evaluate_test_set_top5
 ```
 
 O script imprime:
@@ -412,7 +411,7 @@ O script imprime:
 Na raiz:
 
 ```powershell
-python -m uvicorn inference_api:app --host 127.0.0.1 --port 8000
+python -m uvicorn vision_inspect.api.app:app --host 127.0.0.1 --port 8000
 ```
 
 Health check:
