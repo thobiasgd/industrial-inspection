@@ -48,16 +48,16 @@ A interface permite:
 ### Aplicação web
 
 <p align="center">
-  <img src="./docs/images/ui-empty-state.png" alt="Tela inicial" width="49%">
-  <img src="./docs/images/ui-overlay-result.png" alt="Tela com resultado" width="49%">
+  <img src="./docs/images/ui-empty-state.PNG" alt="Tela inicial" width="49%">
+  <img src="./docs/images/ui-overlay-result.PNG" alt="Tela com resultado" width="49%">
 </p>
 
 ### Exemplos de inspeção
 
 <p align="center">
-  <img src="./docs/images/overlay-broken-large.png" alt="Broken large" width="32%">
-  <img src="./docs/images/overlay-contamination.png" alt="Contamination" width="32%">
-  <img src="./docs/images/heatmap-example.png" alt="Heatmap" width="32%">
+  <img src="./docs/images/overlay-broken-large.PNG" alt="Broken large" width="32%">
+  <img src="./docs/images/overlay-contamination.PNG" alt="Contamination" width="32%">
+  <img src="./docs/images/heatmap-example.PNG" alt="Heatmap" width="32%">
 </p>
 
 ## Como o detector funciona
