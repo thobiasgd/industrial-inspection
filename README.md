@@ -243,13 +243,35 @@ A resposta contém o score, o threshold, a decisão, as dimensões da imagem, as
 
 ## Verificações
 
-Para avaliar o detector com as imagens do dataset, mantenha o ambiente Python ativo:
+### Integração contínua (sem GPU)
+
+O workflow [CI](./.github/workflows/ci.yml) do GitHub Actions executa automaticamente em **pushes e pull requests**, em qualquer branch, e também pode ser iniciado manualmente pela aba **Actions**. São quatro jobs independentes em runners Ubuntu:
+
+| Job | Ambiente | Verificação |
+| --- | --- | --- |
+| Python tests (CPU) | Python 3.11 e PyTorch/torchvision para CPU | `python -m pytest python/tests` |
+| Backend tests | Node.js 22 e pnpm 10.22.0 | `pnpm --dir backend test` (Vitest, sem modo watch) |
+| Backend build | Node.js 22 e pnpm 10.22.0 | `pnpm --dir backend build` |
+| Frontend build | Node.js 22 e pnpm 10.22.0 | `pnpm --dir frontend build` (TypeScript e Vite) |
+
+O pipeline usa cache de downloads do pip e do store do pnpm. As instalações Node usam `--frozen-lockfile` com o `pnpm-lock.yaml` de cada aplicação. O Node 22 é atualizado para a revisão mais recente dessa linha para atender aos requisitos das dependências. Novos commits cancelam execuções anteriores do mesmo evento e referência.
+
+Os testes Python verificam o contrato HTTP, uploads inválidos, dimensões e codificação das visualizações, resolução dos caminhos e importação dos comandos sem executar seus fluxos. A API usa um detector simulado com `unittest.mock`: **não há acesso à GPU, ao MVTec AD, aos artefatos de inferência ou aos pesos da ResNet18**. O job também confirma que o PyTorch instalado é CPU-only. Os testes do backend executam isoladamente, sem iniciar o serviço Python; os builds não iniciam os servidores.
+
+Para reproduzir as verificações sem GPU, crie um **ambiente virtual separado** do ambiente CUDA e instale as dependências a partir da raiz:
 
 ```powershell
-python -m vision_inspect.cli.evaluate_test_set_top5
+python -m venv .venv-ci
+.\.venv-ci\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cpu
+python -m pip install -e "./python[dev]"
+python -m pip check
+pnpm --dir backend install --frozen-lockfile
+pnpm --dir frontend install --frozen-lockfile
 ```
 
-Para executar os testes automatizados e verificar a compilação das aplicações:
+Em Linux, substitua o comando de ativação por `source .venv-ci/bin/activate`. Em seguida:
 
 ```powershell
 python -m pytest python/tests
@@ -258,7 +280,18 @@ pnpm --dir backend build
 pnpm --dir frontend build
 ```
 
-Os testes automatizados Python utilizam um detector simulado. A avaliação do dataset executa a inferência real e requer GPU e artefatos.
+### Validação do detector real
+
+O CI não executa inferência real, preparação do memory bank, calibração do threshold, avaliação do dataset ou testes ponta a ponta entre os três serviços. Um CI aprovado não revalida a acurácia nem os resultados históricos abaixo.
+
+Essas verificações continuam locais e exigem o ambiente CUDA, a GPU NVIDIA, os artefatos e, para preparação/avaliação, a categoria Bottle do MVTec AD. Reative o ambiente Python com CUDA descrito em **Executar localmente** e execute:
+
+```powershell
+python -m vision_inspect.cli.check_gpu
+python -m vision_inspect.cli.evaluate_test_set_top5
+```
+
+Para validar a integração completa, inicie os três serviços e faça uma inspeção pela interface conforme os passos 6 e 7. A instalação CPU usada nos testes não habilita execução do detector real em CPU.
 
 ## Resultados e escopo do protótipo
 
